@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Carnet">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#E8ECEF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1419" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Carnet d'entretien</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout : carnet d'atelier. Une colonne sur téléphone, le compteur kilométrique
+   de chaque véhicule sert de repère visuel, les échéances se lisent par bandes d'état. */
+:root{
+  --bg:#E8ECEF;
+  --surface:#F8FAFB;
+  --ink:#17212B;
+  --muted:#566472;
+  --line:#C9D1D8;
+  --accent:#1D4F91;      /* bleu de travail */
+  --accent-ink:#FFFFFF;
+  --late:#BF2A1E;
+  --soon:#A86200;
+  --ok:#2A7549;
+  --late-bg:#F7DEDA;
+  --soon-bg:#F6E7C8;
+  --ok-bg:#D9EDE0;
+  --odo-bg:#12171C;
+  --odo-cell:#232B33;
+  --odo-ink:#F2F0E6;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0F1419; --surface:#182029; --ink:#E6EBEF; --muted:#97A4B1; --line:#2C3743;
+    --accent:#86B4F2; --accent-ink:#0B1622;
+    --late:#FF8474; --soon:#F0B24A; --ok:#6CCB93;
+    --late-bg:#3A1B18; --soon-bg:#372A10; --ok-bg:#15301F;
+    --odo-bg:#05080B; --odo-cell:#1B222A; --odo-ink:#F2F0E6;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F1419; --surface:#182029; --ink:#E6EBEF; --muted:#97A4B1; --line:#2C3743;
+  --accent:#86B4F2; --accent-ink:#0B1622;
+  --late:#FF8474; --soon:#F0B24A; --ok:#6CCB93;
+  --late-bg:#3A1B18; --soon-bg:#372A10; --ok-bg:#15301F;
+  --odo-bg:#05080B; --odo-cell:#1B222A; --odo-ink:#F2F0E6;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.45 var(--f-body);-webkit-text-size-adjust:100%}
+.wrap{max-width:980px;margin:0 auto;padding:calc(20px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) calc(72px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:22px}
+h1,h2,h3,p{margin:0}
+h1,h2,h3{text-wrap:balance}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* En-tête */
+.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;border-bottom:2px solid var(--ink);padding-bottom:10px}
+.top h1{font:700 34px/1 var(--f-display);letter-spacing:.01em;text-transform:uppercase}
+.top p{color:var(--muted);font-size:13px}
+
+/* Navigation véhicules */
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:thin}
+.tabs button{flex:none;min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:600 17px/1 var(--f-display);letter-spacing:.03em;text-transform:uppercase;cursor:pointer}
+.tabs button[aria-current="page"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.tabs button.add{border-style:dashed;color:var(--accent);background:transparent}
+
+/* Boutons */
+.btn{min-height:42px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:500 15px/1 var(--f-body);cursor:pointer}
+.btn--primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn--danger{color:var(--late);border-color:var(--late);background:transparent}
+.btn:disabled{opacity:.55;cursor:default}
+.link{border:0;background:none;padding:6px 0;color:var(--accent);font:500 14px/1.2 var(--f-body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Sections */
+.sec{display:flex;flex-direction:column;gap:12px}
+.sec-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+.sec-h h2{font:600 22px/1.1 var(--f-display);letter-spacing:.05em;text-transform:uppercase}
+.sec-h small{color:var(--muted);font-size:13px}
+
+/* Synthèse */
+.summary{display:flex;flex-wrap:wrap;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font:600 15px/1.2 var(--f-display);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.pill b{font-size:20px;font-variant-numeric:tabular-nums}
+.pill--late{background:var(--late-bg);color:var(--late)}
+.pill--soon{background:var(--soon-bg);color:var(--soon)}
+.pill--ok{background:var(--ok-bg);color:var(--ok)}
+.pill--unknown{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+
+/* Compteurs */
+.odos{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.car{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.car-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.car-h h3{font:600 22px/1.05 var(--f-display);letter-spacing:.02em;text-transform:uppercase}
+.car-h button.name{border:0;background:none;padding:0;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px}
+.car-sub{color:var(--muted);font-size:13px}
+.car-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.odo-wrap{display:flex;align-items:flex-end;gap:6px}
+.odo{display:inline-flex;gap:2px;padding:4px;background:var(--odo-bg);border-radius:6px}
+.odo span{width:23px;height:34px;display:grid;place-items:center;border-radius:3px;background:linear-gradient(var(--odo-cell),var(--odo-bg) 50%,var(--odo-cell));color:var(--odo-ink);font:600 25px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.odo span.z{color:rgba(242,240,230,.3)}
+.unit{font:600 15px/1.6 var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.kmform{display:flex;gap:6px;flex:1 1 150px;min-width:0}
+.kmform input{flex:1;min-width:0}
+.kmform .btn{padding:0 12px}
+@media (max-width:480px){
+  .car{padding:12px}
+  .car-row{gap:8px 12px}
+  .unit{display:none}
+  .odo span{width:20px;height:32px;font-size:23px}
+}
+.kmwarn{font-size:13px;color:var(--late)}
+
+/* Champs */
+input,select,textarea{font:400 16px/1.3 var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px;min-height:42px;width:100%}
+textarea{min-height:76px;resize:vertical}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.8}
+
+/* Échéances */
+.group{display:flex;flex-direction:column;gap:8px}
+.group-h{display:flex;align-items:baseline;gap:8px;color:var(--muted);font-size:13px}
+.group-h b{font:600 16px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+.dues{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:760px){.dues{grid-template-columns:1fr 1fr}}
+.due{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--muted);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.due--late{border-left-color:var(--late)}
+.due--soon{border-left-color:var(--soon)}
+.due--ok{border-left-color:var(--ok)}
+.due-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.due-h h3{font:600 16px/1.25 var(--f-body);overflow-wrap:anywhere}
+.due-veh{color:var(--muted);font-size:13px}
+.due-main{font:600 26px/1.05 var(--f-display);letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.due--late .due-main{color:var(--late)}
+.due--soon .due-main{color:var(--soon)}
+.due--unknown .due-main{color:var(--muted);font-size:20px}
+.gauges{display:flex;flex-direction:column;gap:5px}
+.gauge{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:8px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gauge.is-binding{color:var(--ink);font-weight:500}
+.g-lab{font:600 13px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase}
+.g-bar{height:8px;border-radius:2px;background:var(--line);overflow:hidden}
+.g-bar i{display:block;height:100%;background:var(--muted)}
+.due--late .is-binding .g-bar i{background:var(--late)}
+.due--soon .is-binding .g-bar i{background:var(--soon)}
+.due--ok .is-binding .g-bar i{background:var(--ok)}
+.due-note{font-size:13px;color:var(--muted)}
+.due-act{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+
+/* Fiche véhicule */
+.veh-h{display:flex;flex-direction:column;gap:6px}
+.veh-h h2{font:700 30px/1 var(--f-display);text-transform:uppercase;letter-spacing:.01em}
+.veh-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;color:var(--muted);font-size:14px}
+.plate{display:inline-flex;align-items:stretch;border:1.5px solid #111;border-radius:4px;background:#fff;color:#111;font:600 15px/1.3 var(--f-display);letter-spacing:.08em;overflow:hidden}
+.plate::before{content:"F";display:grid;place-items:end center;padding:0 4px 1px;background:#1D3F8F;color:#fff;font-size:10px;letter-spacing:0}
+.plate span{padding:0 7px}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;align-self:flex-start;max-width:100%}
+.seg button{min-height:42px;padding:0 16px;border:0;background:var(--surface);color:var(--ink);font:600 17px/1 var(--f-display);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.stats{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+.stats b{color:var(--ink);font-weight:600}
+
+/* Historique */
+.log{display:flex;flex-direction:column;border-top:2px solid var(--ink)}
+.entry{display:grid;grid-template-columns:118px 1fr auto;gap:4px 16px;padding:12px 0;border-bottom:1px solid var(--line);align-items:start}
+.e-when{display:flex;flex-direction:column;font-variant-numeric:tabular-nums}
+.e-when b{font:600 18px/1.2 var(--f-display);letter-spacing:.02em}
+.e-when span{color:var(--muted);font-size:13px}
+.e-what{display:flex;flex-direction:column;gap:4px;min-width:0}
+.e-what h3{font:600 16px/1.3 var(--f-body);overflow-wrap:anywhere}
+.e-what p{font-size:14px;color:var(--muted);overflow-wrap:anywhere;white-space:pre-line}
+.e-what p em{font-style:normal;color:var(--ink)}
+.e-side{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.e-cost{font:600 20px/1.2 var(--f-display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{display:inline-block;align-self:flex-start;padding:2px 8px;border-radius:4px;border:1px solid var(--line);font-size:12px;font-weight:500;color:var(--ink)}
+.tag--self{border-color:var(--accent);color:var(--accent)}
+@media (max-width:560px){
+  .entry{grid-template-columns:1fr auto}
+  .e-when{flex-direction:row;align-items:baseline;gap:10px}
+  .e-what{grid-column:1 / -1;grid-row:2}
+  .e-side{flex-direction:row;align-items:baseline;gap:12px}
+}
+
+.empty,.state{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:18px;color:var(--muted);font-size:15px;display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.empty b{color:var(--ink)}
+
+/* Fenêtres de saisie */
+dialog{width:min(560px,calc(100vw - 20px));max-height:calc(100% - 20px);padding:0;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);overflow:auto}
+dialog::backdrop{background:rgba(8,12,16,.6)}
+dialog form{display:flex;flex-direction:column;gap:14px;padding:18px 16px}
+dialog h2{font:700 26px/1 var(--f-display);text-transform:uppercase;letter-spacing:.02em}
+.fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fld > label,.fld > span.lab,fieldset legend{font-size:13px;font-weight:500;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+fieldset{border:1px solid var(--line);border-radius:8px;padding:10px 12px 12px;margin:0;display:flex;flex-direction:column;gap:12px;min-width:0}
+.choice{display:flex;gap:8px;flex-wrap:wrap}
+.choice label{display:flex;align-items:center;gap:8px;min-height:42px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);font-size:15px;color:var(--ink);cursor:pointer}
+.choice input{width:auto;min-height:0;accent-color:var(--accent)}
+.preview{font-size:14px;padding:8px 10px;border-radius:6px;background:var(--bg);border:1px solid var(--line)}
+.err{color:var(--late);font-size:14px}
+.dlg-act{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.dlg-act .btn--danger{margin-right:auto}
+#csv-text{min-height:200px;font:400 12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:calc(100vw - 32px);padding:10px 14px;border-radius:6px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:500;z-index:10}
+.toast.is-err{background:var(--late);color:#fff}
+.tip{background:var(--soon-bg);color:var(--ink);border-radius:8px;padding:12px 14px;font-size:14px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.stats.is-warn b{color:var(--soon)}
+.imp{display:flex;flex-direction:column;gap:10px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Carnet d'entretien</h1>
+    <p id="sync"></p>
+  </header>
+  <main id="app" class="sec" style="gap:22px"><p class="state">Chargement du carnet…</p></main>
+</div>
+
+<dialog id="dlg-entry" aria-labelledby="t-entry">
+  <form id="f-entry" novalidate>
+    <h2 id="t-entry">Nouvelle intervention</h2>
+    <div class="fld"><label for="e-vehicle">Véhicule</label><select id="e-vehicle"></select></div>
+    <div class="two">
+      <div class="fld"><label for="e-date">Date</label><input id="e-date" type="date" required></div>
+      <div class="fld"><label for="e-km">Kilométrage</label><input id="e-km" type="text" inputmode="numeric" autocomplete="off" placeholder="km au compteur"></div>
+    </div>
+    <div class="fld"><label for="e-op">Opération</label><input id="e-op" type="text" list="ops" autocomplete="off" required placeholder="Vidange moteur + filtre à huile"></div>
+    <div class="fld"><label for="e-parts">Pièces et références</label><textarea id="e-parts" placeholder="Huile 5W-40 (4,5 L), filtre à huile, joint de bouchon…"></textarea></div>
+    <div class="two">
+      <div class="fld"><label for="e-cost">Coût (€)</label><input id="e-cost" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
+      <div class="fld"><span class="lab" id="l-by">Réalisé par</span>
+        <div class="choice" role="radiogroup" aria-labelledby="l-by">
+          <label><input type="radio" name="e-by" id="e-by-self" value="self" checked>Moi-même</label>
+          <label><input type="radio" name="e-by" id="e-by-garage" value="garage">Garage</label>
+        </div>
+      </div>
+    </div>
+    <div class="fld" id="w-garage" hidden><label for="e-garage">Nom du garage</label><input id="e-garage" type="text" autocomplete="off"></div>
+    <div class="fld"><label for="e-notes">Notes</label><textarea id="e-notes" placeholder="Constats, couples de serrage, points à surveiller…"></textarea></div>
+    <div class="fld" id="w-link"><label for="e-link">Échéance soldée par cette intervention</label><select id="e-link"></select></div>
+    <p class="err" id="e-err" role="alert" hidden></p>
+    <div class="dlg-act">
+      <button type="button" class="btn btn--danger" id="e-del" data-act="del-entry">Supprimer</button>
+      <button type="button" class="btn" data-act="close">Annuler</button>
+      <button type="submit" class="btn btn--primary">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-sched" aria-labelledby="t-sched">
+  <form id="f-sched" novalidate>
+    <h2 id="t-sched">Nouvelle échéance</h2>
+    <div class="fld"><label for="s-vehicle">Véhicule</label><select id="s-vehicle"></select></div>
+    <div class="fld"><label for="s-title">Opération</label><input id="s-title" type="text" list="ops" autocomplete="off" required placeholder="Courroie de distribution"></div>
+    <div class="fld"><span class="lab" id="l-mode">Type</span>
+      <div class="choice" role="radiogroup" aria-labelledby="l-mode">
+        <label><input type="radio" name="s-mode" id="s-mode-rec" value="rec" checked>Périodique</label>
+        <label><input type="radio" name="s-mode" id="s-mode-once" value="once">Ponctuelle</label>
+      </div>
+    </div>
+    <fieldset id="fs-rec">
+      <legend>Périodicité, la première limite atteinte compte</legend>
+      <div class="two">
+        <div class="fld"><label for="s-everyKm">Tous les (km)</label><input id="s-everyKm" type="text" inputmode="numeric" autocomplete="off" placeholder="15 000"></div>
+        <div class="fld"><label for="s-everyMonths">Tous les (mois)</label><input id="s-everyMonths" type="text" inputmode="numeric" autocomplete="off" placeholder="12"></div>
+      </div>
+      <div class="two">
+        <div class="fld"><label for="s-lastDate">Dernière fois le</label><input id="s-lastDate" type="date"></div>
+        <div class="fld"><label for="s-lastKm">Dernière fois à (km)</label><input id="s-lastKm" type="text" inputmode="numeric" autocomplete="off"></div>
+      </div>
+    </fieldset>
+    <fieldset id="fs-once" hidden>
+      <legend>Limite, la première atteinte compte</legend>
+      <div class="two">
+        <div class="fld"><label for="s-dueDate">Avant le</label><input id="s-dueDate" type="date"></div>
+        <div class="fld"><label for="s-dueKm">Avant (km)</label><input id="s-dueKm" type="text" inputmode="numeric" autocomplete="off"></div>
+      </div>
+    </fieldset>
+    <p class="preview" id="s-preview"></p>
+    <div class="fld"><label for="s-notes">Notes</label><textarea id="s-notes" placeholder="Source de l'intervalle, référence des pièces…"></textarea></div>
+    <p class="err" id="s-err" role="alert" hidden></p>
+    <div class="dlg-act">
+      <button type="button" class="btn btn--danger" id="s-del" data-act="del-sched">Supprimer</button>
+      <button type="button" class="btn" data-act="close">Annuler</button>
+      <button type="submit" class="btn btn--primary">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-veh" aria-labelledby="t-veh">
+  <form id="f-veh" novalidate>
+    <h2 id="t-veh">Nouveau véhicule</h2>
+    <div class="fld"><label for="v-name">Marque et modèle</label><input id="v-name" type="text" autocomplete="off" required placeholder="Porsche 924"></div>
+    <div class="fld"><label for="v-detail">Motorisation ou version</label><input id="v-detail" type="text" autocomplete="off" placeholder="2.0 125 ch"></div>
+    <div class="two">
+      <div class="fld"><label for="v-year">Année</label><input id="v-year" type="text" inputmode="numeric" autocomplete="off" placeholder="1978"></div>
+      <div class="fld"><label for="v-plate">Immatriculation</label><input id="v-plate" type="text" autocomplete="off" placeholder="AB-123-CD"></div>
+    </div>
+    <div class="fld" id="w-vkm"><label for="v-km">Kilométrage actuel</label><input id="v-km" type="text" inputmode="numeric" autocomplete="off"></div>
+    <p class="err" id="v-err" role="alert" hidden></p>
+    <div class="dlg-act">
+      <button type="button" class="btn btn--danger" id="v-del" data-act="del-veh">Supprimer le véhicule</button>
+      <button type="button" class="btn" data-act="close">Annuler</button>
+      <button type="submit" class="btn btn--primary">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-csv" aria-labelledby="t-csv">
+  <form id="f-csv" novalidate>
+    <h2 id="t-csv">Export CSV</h2>
+    <p style="font-size:14px;color:var(--muted)">Le partage de fichier n'est pas disponible dans ce navigateur. Copiez le contenu, collez-le dans un fichier texte et enregistrez-le en .csv.</p>
+    <label class="sr" for="csv-text">Contenu CSV</label>
+    <textarea id="csv-text" readonly></textarea>
+    <div class="dlg-act">
+      <button type="button" class="btn" data-act="close">Fermer</button>
+      <button type="button" class="btn btn--primary" data-act="copy-csv">Copier</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="ops">
+  <option value="Vidange moteur + filtre à huile"></option>
+  <option value="Courroie de distribution + pompe à eau"></option>
+  <option value="Courroie d'accessoires"></option>
+  <option value="Liquide de frein"></option>
+  <option value="Liquide de refroidissement"></option>
+  <option value="Filtre à air"></option>
+  <option value="Filtre à carburant"></option>
+  <option value="Filtre d'habitacle"></option>
+  <option value="Bougies d'allumage"></option>
+  <option value="Huile de boîte"></option>
+  <option value="Plaquettes de frein"></option>
+  <option value="Disques et plaquettes de frein"></option>
+  <option value="Pneus"></option>
+  <option value="Batterie"></option>
+  <option value="Contrôle technique"></option>
+</datalist>
+
+<input type="file" id="imp-file" hidden>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function(){
+'use strict';
+var SOON_KM=1500, SOON_DAYS=30, DEFAULT_RATE=10000/365;
+var $=function(s){return document.querySelector(s);};
+var root=$('#app');
+var S={vehicles:[],entries:[],schedules:[],mode:'loading',slow:false,view:'dash',tab:'due',kmWarn:{},busy:false};
+var KEY='carnet-entretien-v1', META={lastBackup:null,dirty:0}, pendingImport=null, storageOk=true;
+var editing={entry:null,sched:null,veh:null};
+
+/* ---------- utilitaires ---------- */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+var nf=new Intl.NumberFormat('fr-FR');
+var eur=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'});
+var monthFmt=new Intl.DateTimeFormat('fr-FR',{month:'long',year:'numeric',timeZone:'UTC'});
+function fmtKm(n){return nf.format(n);}
+function p2(n){return String(n).padStart(2,'0');}
+function todayISO(){var d=new Date();return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
+function toUTC(iso){var a=iso.split('-').map(Number);return Date.UTC(a[0],a[1]-1,a[2]);}
+function diffDays(a,b){return Math.round((toUTC(b)-toUTC(a))/864e5);}
+function addDays(iso,n){return new Date(toUTC(iso)+n*864e5).toISOString().slice(0,10);}
+function addMonths(iso,n){
+  var a=iso.split('-').map(Number);
+  var t=new Date(Date.UTC(a[0],a[1]-1+n,1));
+  var last=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth()+1,0)).getUTCDate();
+  t.setUTCDate(Math.min(a[2],last));
+  return t.toISOString().slice(0,10);
+}
+function fmtDate(iso){if(!iso)return '';var a=iso.split('-');return a[2]+'/'+a[1]+'/'+a[0];}
+function parseKm(str){
+  var s=String(str==null?'':str).replace(/[\s  .]/g,'').replace(/km$/i,'');
+  if(!s)return null;
+  if(!/^\d{1,7}$/.test(s))return NaN;
+  return parseInt(s,10);
+}
+function parseMoney(str){
+  var s=String(str==null?'':str).replace(/[\s  €]/g,'').replace(',','.');
+  if(!s)return null;
+  if(!/^\d+(\.\d+)?$/.test(s))return NaN;
+  return Math.round(parseFloat(s)*100)/100;
+}
+function human(d){
+  if(d<60)return d+(d>1?' jours':' jour');
+  var m=Math.round(d/30.44);
+  if(m<36)return m+' mois';
+  return Math.round(d/365.25)+' ans';
+}
+function plain(o){var c=JSON.parse(JSON.stringify(o));delete c.id;return c;}
+function veh(id){return S.vehicles.find(function(v){return v.id===id;})||null;}
+function sortedVehicles(){return S.vehicles.slice().sort(function(a,b){return (a.order||0)-(b.order||0)||String(a.name).localeCompare(String(b.name),'fr');});}
+
+/* ---------- calcul des échéances ---------- */
+function rateOf(v){
+  var pts=[];
+  (v.kmLog||[]).forEach(function(p){if(p&&p.d&&typeof p.k==='number')pts.push([p.d,p.k]);});
+  S.entries.forEach(function(e){if(e.vehicleId===v.id&&e.date&&typeof e.km==='number')pts.push([e.date,e.km]);});
+  if(pts.length<2)return null;
+  pts.sort(function(a,b){return a[0]<b[0]?-1:a[0]>b[0]?1:a[1]-b[1];});
+  var last=pts[pts.length-1];
+  var recent=pts.filter(function(p){return diffDays(p[0],last[0])<=730;});
+  var first=(recent.length>=2&&diffDays(recent[0][0],last[0])>=30)?recent[0]:pts[0];
+  var days=diffDays(first[0],last[0]), dk=last[1]-first[1];
+  if(days<30||dk<=0)return null;
+  return dk/days;
+}
+function dueInfo(s,v,today,rate){
+  var dueKm=null,dueDate=null,baseKm=null,baseDate=null,notes=[];
+  if(s.mode==='once'){
+    dueKm=typeof s.dueKm==='number'?s.dueKm:null; dueDate=s.dueDate||null;
+    baseKm=typeof s.baseKm==='number'?s.baseKm:null; baseDate=s.baseDate||null;
+  }else{
+    baseKm=typeof s.lastKm==='number'?s.lastKm:null; baseDate=s.lastDate||null;
+    if(s.everyKm){ if(baseKm!=null)dueKm=baseKm+s.everyKm; else notes.push('Kilométrage de la dernière réalisation inconnu.'); }
+    if(s.everyMonths){ if(baseDate)dueDate=addMonths(baseDate,s.everyMonths); else notes.push('Date de la dernière réalisation inconnue.'); }
+  }
+  var vkm=typeof v.km==='number'?v.km:null;
+  if(dueKm!=null&&vkm==null)notes.push('Saisissez le kilométrage du véhicule pour suivre la limite en km.');
+  var kmLeft=(dueKm!=null&&vkm!=null)?dueKm-vkm:null;
+  var daysLeft=dueDate?diffDays(today,dueDate):null;
+  var status;
+  if(kmLeft==null&&daysLeft==null)status='unknown';
+  else if((kmLeft!=null&&kmLeft<=0)||(daysLeft!=null&&daysLeft<0))status='late';
+  else if((kmLeft!=null&&kmLeft<=SOON_KM)||(daysLeft!=null&&daysLeft<=SOON_DAYS))status='soon';
+  else status='ok';
+  var r=rate||DEFAULT_RATE;
+  var eKm=kmLeft!=null?kmLeft/r:null;
+  var binding=null;
+  if(eKm!=null&&daysLeft!=null)binding=eKm<=daysLeft?'km':'date';
+  else if(eKm!=null)binding='km';
+  else if(daysLeft!=null)binding='date';
+  var urgency=binding==='km'?eKm:binding==='date'?daysLeft:Infinity;
+  var pKm=null,pTime=null;
+  if(dueKm!=null&&vkm!=null&&baseKm!=null&&dueKm>baseKm)pKm=(vkm-baseKm)/(dueKm-baseKm);
+  if(dueDate&&baseDate){var span=diffDays(baseDate,dueDate);if(span>0)pTime=diffDays(baseDate,today)/span;}
+  var est=(binding==='km'&&kmLeft>0&&rate)?addDays(today,Math.round(kmLeft/rate)):null;
+  return {dueKm:dueKm,dueDate:dueDate,kmLeft:kmLeft,daysLeft:daysLeft,status:status,binding:binding,urgency:urgency,pKm:pKm,pTime:pTime,notes:notes,est:est,rate:rate||null};
+}
+function mainText(i){
+  if(i.status==='unknown')return i.dueKm!=null?'Kilométrage du véhicule à saisir':'Dernière réalisation à renseigner';
+  if(i.binding==='km'){
+    if(i.kmLeft>0)return 'Dans '+fmtKm(i.kmLeft)+' km';
+    if(i.kmLeft===0)return 'Kilométrage atteint';
+    return 'Dépassée de '+fmtKm(-i.kmLeft)+' km';
+  }
+  if(i.daysLeft>0)return 'Dans '+human(i.daysLeft);
+  if(i.daysLeft===0)return 'À faire aujourd’hui';
+  return 'Dépassée de '+human(-i.daysLeft);
+}
+var RANK={late:0,soon:1,unknown:2,ok:3};
+function dueList(filterVid){
+  var today=todayISO(),rates={};
+  S.vehicles.forEach(function(v){rates[v.id]=rateOf(v);});
+  var out=[];
+  S.schedules.forEach(function(s){
+    var v=veh(s.vehicleId); if(!v)return;
+    if(filterVid&&v.id!==filterVid)return;
+    out.push({s:s,v:v,i:dueInfo(s,v,today,rates[v.id])});
+  });
+  out.sort(function(a,b){return RANK[a.i.status]-RANK[b.i.status]||a.i.urgency-b.i.urgency||String(a.s.title).localeCompare(String(b.s.title),'fr');});
+  return out;
+}
+
+/* ---------- stockage local ---------- */
+function newId(){return 'i'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+var DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
+function okDate(x){return typeof x==='string'&&DATE_RE.test(x)&&!isNaN(toUTC(x))?x:null;}
+function clean(d){
+  var arr=function(x){return Array.isArray(x)?x.filter(function(o){return o&&typeof o==='object'&&typeof o.id==='string'&&o.id;}):[];};
+  var vs=arr(d.vehicles).filter(function(v){return typeof v.name==='string'&&v.name;});
+  vs.forEach(function(v){
+    v.km=typeof v.km==='number'&&isFinite(v.km)?v.km:null; v.kmDate=okDate(v.kmDate);
+    v.kmLog=(Array.isArray(v.kmLog)?v.kmLog:[]).filter(function(p){return p&&okDate(p.d)&&typeof p.k==='number';});
+  });
+  var ids={}; vs.forEach(function(v){ids[v.id]=1;});
+  var es=arr(d.entries).filter(function(e){return ids[e.vehicleId]&&okDate(e.date)&&typeof e.operation==='string';});
+  es.forEach(function(e){e.km=typeof e.km==='number'&&isFinite(e.km)?e.km:null;e.cost=typeof e.cost==='number'&&isFinite(e.cost)?e.cost:null;});
+  var ss=arr(d.schedules).filter(function(x){return ids[x.vehicleId]&&typeof x.title==='string';});
+  ss.forEach(function(x){
+    ['lastDate','dueDate','baseDate'].forEach(function(k){x[k]=okDate(x[k]);});
+    ['everyKm','everyMonths','lastKm','dueKm','baseKm'].forEach(function(k){x[k]=typeof x[k]==='number'&&isFinite(x[k])?x[k]:null;});
+  });
+  return {vehicles:vs,entries:es,schedules:ss};
+}
+function loadState(){
+  try{
+    var raw=localStorage.getItem(KEY);
+    if(!raw)return;
+    var d=JSON.parse(raw), c=clean(d);
+    S.vehicles=c.vehicles; S.entries=c.entries; S.schedules=c.schedules;
+    var m=d.meta||{}; META={lastBackup:okDate(m.lastBackup),dirty:typeof m.dirty==='number'?m.dirty:0};
+  }catch(e){
+    storageOk=false;
+    try{var bad=localStorage.getItem(KEY);if(bad){localStorage.setItem(KEY+'-illisible',bad);storageOk=true;}}catch(e2){}
+  }
+}
+function persist(){
+  localStorage.setItem(KEY,JSON.stringify({v:1,vehicles:S.vehicles,entries:S.entries,schedules:S.schedules,meta:META}));
+}
+function commit(){
+  try{persist();}
+  catch(e){loadState();render();var err=new Error('storage');err.code='storage';throw err;}
+  render();
+}
+var Store={
+  put:async function(coll,id,data){
+    var row=Object.assign({id:id||newId()},data);
+    var k=S[coll].findIndex(function(x){return x.id===row.id;});
+    if(k>=0)S[coll][k]=row; else S[coll].push(row);
+    META.dirty++; commit(); return row.id;
+  },
+  del:async function(coll,id){
+    S[coll]=S[coll].filter(function(x){return x.id!==id;});
+    META.dirty++; commit();
+  }
+};
+function failMsg(err){
+  if(err&&err.code==='storage')return 'Enregistrement impossible : le stockage de cet appareil est plein ou bloqué.';
+  return 'Une erreur est survenue. Réessayez.';
+}
+async function guard(fn){
+  if(S.busy)return false;
+  S.busy=true;
+  try{await fn();return true;}
+  catch(err){toast(failMsg(err),true);return false;}
+  finally{S.busy=false;}
+}
+async function setKm(v,km,date){
+  var log=(v.kmLog||[]).filter(function(p){return p&&p.d!==date&&p.k<=km;}).map(function(p){return {d:p.d,k:p.k};});
+  log.push({d:date,k:km});
+  log.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0;});
+  var data=plain(v); data.km=km; data.kmDate=date; data.kmLog=log.slice(-100);
+  await Store.put('vehicles',v.id,data);
+}
+
+/* ---------- sauvegarde ---------- */
+function standalone(){return window.navigator.standalone===true||!!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);}
+function tipHidden(){try{return localStorage.getItem(KEY+'-tip')==='0';}catch(e){return false;}}
+function installTip(){
+  if(standalone()||tipHidden())return '';
+  return '<div class="tip"><p><b>Installer sur iPhone :</b> dans Safari, touchez Partager puis « Sur l’écran d’accueil ». Ouvrez ensuite le carnet depuis son icône : c’est là que vos données seront enregistrées, séparément de Safari.</p><button class="link" data-act="hide-tip">Masquer ce message</button></div>';
+}
+function countLine(d){
+  var p=function(n,w){return n+' '+w+(n>1?'s':'');};
+  return p(d.vehicles.length,'véhicule')+', '+p(d.entries.length,'intervention')+', '+p(d.schedules.length,'échéance');
+}
+function backupSection(){
+  var n=S.vehicles.length+S.entries.length+S.schedules.length;
+  var st,warn=false;
+  if(META.lastBackup){st='Dernière sauvegarde le '+fmtDate(META.lastBackup)+(META.dirty?' · '+META.dirty+' modification'+(META.dirty>1?'s':'')+' depuis':' · à jour');warn=META.dirty>=10;}
+  else{st=n?'Aucune sauvegarde pour le moment':'Carnet vide';warn=S.entries.length>0;}
+  var h='<section class="sec"><div class="sec-h"><h2>Sauvegarde</h2></div><div class="car">'+
+    '<p class="car-sub">Le carnet est stocké uniquement sur cet appareil. Un fichier de sauvegarde permet de le retrouver après un changement de téléphone ou un effacement des données.</p>'+
+    '<p class="stats'+(warn?' is-warn':'')+'"><b>'+esc(st)+'</b></p>';
+  if(pendingImport)h+='<div class="imp"><p>Sauvegarde'+(pendingImport.when?' du '+fmtDate(pendingImport.when):'')+' : '+countLine(pendingImport.data)+'. Elle remplacera le contenu actuel du carnet ('+countLine(S)+').</p>'+
+    '<div class="actions"><button class="btn btn--danger" data-act="import-ok">Remplacer mes données</button><button class="btn" data-act="import-cancel">Annuler</button></div></div>';
+  else h+='<div class="actions">'+(n?'<button class="btn btn--primary" data-act="backup">Sauvegarder dans un fichier</button>':'')+'<button class="btn" data-act="restore">Restaurer une sauvegarde</button></div>';
+  return h+'</div></section>';
+}
+async function deliver(name,text,mime){
+  var blob=new Blob([text],{type:mime});
+  try{
+    var file=new File([blob],name,{type:mime});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});return 'shared';}
+  }catch(err){if(err&&err.name==='AbortError')return 'cancelled';}
+  try{
+    var url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},60000);
+    return 'downloaded';
+  }catch(e){return 'failed';}
+}
+async function doBackup(){
+  var today=todayISO();
+  var text=JSON.stringify({app:'carnet-entretien',version:1,exportedAt:today,vehicles:S.vehicles,entries:S.entries,schedules:S.schedules},null,1);
+  var r=await deliver('carnet-entretien-sauvegarde-'+today+'.json',text,'application/json');
+  if(r==='shared'||r==='downloaded'){
+    META.lastBackup=today;META.dirty=0;
+    try{persist();}catch(e){}
+    render();toast('Sauvegarde créée. Rangez le fichier dans Fichiers ou iCloud Drive.');
+  }else if(r==='failed')toast('Sauvegarde impossible dans ce navigateur.',true);
+}
+function applyImport(p){
+  S.vehicles=p.data.vehicles;S.entries=p.data.entries;S.schedules=p.data.schedules;
+  META={lastBackup:p.when||todayISO(),dirty:0};pendingImport=null;S.view='dash';
+  try{persist();}catch(e){toast(failMsg({code:'storage'}),true);loadState();render();return;}
+  render();toast('Sauvegarde restaurée : '+countLine(S)+'.');
+}
+function readImport(file){
+  var fr=new FileReader();
+  fr.onerror=function(){toast('Lecture du fichier impossible.',true);};
+  fr.onload=function(){
+    var d=null;
+    try{d=JSON.parse(String(fr.result).replace(/^\uFEFF/,''));}catch(e){d=null;}
+    if(!d||d.app!=='carnet-entretien'||!Array.isArray(d.vehicles)){toast('Ce fichier n’est pas une sauvegarde du carnet d’entretien.',true);return;}
+    var p={data:clean(d),when:okDate(d.exportedAt)};
+    if(S.vehicles.length+S.entries.length+S.schedules.length===0)applyImport(p);
+    else{pendingImport=p;S.view='dash';render();toast('Vérifiez puis confirmez le remplacement dans « Sauvegarde ».');}
+  };
+  fr.readAsText(file);
+}
+
+/* ---------- rendu ---------- */
+var toastTimer=null;
+function toast(msg,isErr){
+  var t=$('#toast'); t.textContent=msg; t.className='toast'+(isErr?' is-err':''); t.hidden=false;
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.hidden=true;},isErr?6000:3200);
+}
+function odo(km){
+  if(typeof km!=='number')return '<span class="odo" role="img" aria-label="Kilométrage non saisi">'+'<span class="z" aria-hidden="true">–</span>'.repeat(6)+'</span>';
+  var raw=String(km), s=raw.padStart(6,'0'), lead=s.length-raw.length, h='';
+  for(var k=0;k<s.length;k++)h+='<span aria-hidden="true"'+(k<lead?' class="z"':'')+'>'+s[k]+'</span>';
+  return '<span class="odo" role="img" aria-label="'+fmtKm(km)+' kilomètres">'+h+'</span>';
+}
+function kmBlock(v){
+  var w=S.kmWarn[v.id];
+  return '<div class="car-row"><div class="odo-wrap">'+odo(v.km)+'<span class="unit">km</span></div>'+
+    '<form class="kmform" data-form="km" data-id="'+esc(v.id)+'" novalidate>'+
+    '<label class="sr" for="km-'+esc(v.id)+'">Nouveau kilométrage, '+esc(v.name)+'</label>'+
+    '<input id="km-'+esc(v.id)+'" type="text" inputmode="numeric" autocomplete="off" placeholder="km">'+
+    '<button class="btn btn--primary" type="submit">'+(w&&w.value!=null?'Confirmer':'Relever')+'</button></form></div>'+
+    (w?'<p class="kmwarn" role="alert">'+esc(w.msg)+'</p>':'');
+}
+function carCard(v){
+  return '<article class="car"><div class="car-h"><h3><button class="name" data-act="view" data-view="'+esc(v.id)+'">'+esc(v.name)+'</button></h3>'+
+    '<span class="car-sub">'+(v.kmDate?'relevé le '+fmtDate(v.kmDate):'à relever')+'</span></div>'+
+    kmBlock(v)+'</article>';
+}
+function gauge(label,frac,val,binding){
+  var w=frac==null?0:Math.max(0,Math.min(1,frac))*100; if(frac>0&&w<3)w=3;
+  return '<div class="gauge'+(binding?' is-binding':'')+'"><span class="g-lab">'+label+'</span><span class="g-bar"><i style="width:'+w.toFixed(0)+'%"></i></span><span class="g-val">'+val+'</span></div>';
+}
+var PILL={late:'En retard',soon:'Bientôt',unknown:'À renseigner',ok:'À jour'};
+function dueCard(x,showVeh){
+  var s=x.s,i=x.i,g='';
+  if(i.dueKm!=null)g+=gauge('km',i.pKm,'à '+fmtKm(i.dueKm)+' km',i.binding==='km');
+  if(i.dueDate)g+=gauge('date',i.pTime,'le '+fmtDate(i.dueDate),i.binding==='date');
+  var notes=i.notes.slice();
+  if(i.est)notes.unshift('Vers '+monthFmt.format(new Date(toUTC(i.est)))+' au rythme actuel ('+fmtKm(Math.round(i.rate*365/100)*100)+' km/an).');
+  var every=[];
+  if(s.mode!=='once'){ if(s.everyKm)every.push(fmtKm(s.everyKm)+' km'); if(s.everyMonths)every.push(s.everyMonths+' mois'); }
+  return '<article class="due due--'+i.status+'"><div class="due-h"><div><h3>'+esc(s.title)+'</h3>'+
+    '<p class="due-veh">'+(showVeh?esc(x.v.name):'')+(showVeh&&every.length?' · ':'')+(every.length?'tous les '+every.join(' ou '):(s.mode==='once'?(showVeh?' · ':'')+'ponctuelle':''))+'</p></div>'+
+    '<span class="pill pill--'+i.status+'">'+PILL[i.status]+'</span></div>'+
+    '<p class="due-main">'+mainText(i)+'</p>'+
+    (g?'<div class="gauges">'+g+'</div>':'')+
+    (notes.length?'<p class="due-note">'+notes.map(esc).join(' ')+'</p>':'')+
+    (s.notes?'<p class="due-note">'+esc(s.notes)+'</p>':'')+
+    '<div class="due-act"><button class="btn" data-act="done" data-id="'+esc(s.id)+'">Marquer comme fait</button>'+
+    '<button class="link" data-act="edit-sched" data-id="'+esc(s.id)+'">Modifier</button></div></article>';
+}
+var GROUPS=[['late','En retard',''],['soon','Bientôt','moins de '+fmtKm(SOON_KM)+' km ou de '+SOON_DAYS+' jours'],['unknown','À renseigner','il manque une date ou un kilométrage'],['ok','Plus tard','']];
+function dueGroups(items,showVeh){
+  return GROUPS.map(function(g){
+    var l=items.filter(function(x){return x.i.status===g[0];});
+    if(!l.length)return '';
+    return '<div class="group"><p class="group-h"><b>'+g[1]+'</b>'+(g[2]?'<span>'+g[2]+'</span>':'')+'</p><div class="dues">'+l.map(function(x){return dueCard(x,showVeh);}).join('')+'</div></div>';
+  }).join('');
+}
+function summary(items){
+  var c={late:0,soon:0,unknown:0,ok:0}; items.forEach(function(x){c[x.i.status]++;});
+  var h='';
+  [['late','en retard'],['soon','bientôt'],['unknown','à renseigner'],['ok','à jour']].forEach(function(k){
+    if(c[k[0]]||k[0]==='late'||k[0]==='soon')h+='<span class="pill pill--'+k[0]+'"><b>'+c[k[0]]+'</b>'+k[1]+'</span>';
+  });
+  return '<div class="summary" aria-label="Synthèse des échéances">'+h+'</div>';
+}
+function nav(){
+  var h='<nav class="tabs" aria-label="Véhicules"><button data-act="view" data-view="dash"'+(S.view==='dash'?' aria-current="page"':'')+'>Tableau de bord</button>';
+  sortedVehicles().forEach(function(v){h+='<button data-act="view" data-view="'+esc(v.id)+'"'+(S.view===v.id?' aria-current="page"':'')+'>'+esc(v.name)+'</button>';});
+  return h+'<button class="add" data-act="new-veh">+ Véhicule</button></nav>';
+}
+function dash(){
+  var vs=sortedVehicles();
+  if(!vs.length)return '<div class="empty"><p><b>Aucun véhicule dans le carnet.</b> Ajoutez le premier pour commencer l’historique.</p><button class="btn btn--primary" data-act="new-veh">Ajouter un véhicule</button></div>'+installTip()+backupSection();
+  var items=dueList(null);
+  var h=installTip()+summary(items);
+  h+='<section class="sec"><div class="sec-h"><h2>Relevé kilométrique</h2><small>Saisissez le compteur, les échéances se recalculent.</small></div><div class="odos">'+vs.map(carCard).join('')+'</div></section>';
+  h+='<section class="sec"><div class="sec-h"><h2>Échéances</h2><div class="actions"><button class="btn" data-act="new-sched">Ajouter une échéance</button><button class="btn btn--primary" data-act="new-entry">Ajouter une intervention</button></div></div>';
+  if(items.length)h+=dueGroups(items,true);
+  else h+='<div class="empty"><p><b>Aucune échéance suivie.</b> Ajoutez la vidange, la courroie de distribution ou le contrôle technique avec leur intervalle en km et en mois : la première limite atteinte fait remonter la ligne ici.</p></div>';
+  return h+'</section>'+backupSection();
+}
+function entryRow(e){
+  var by=e.by==='garage'?'<span class="tag">Garage'+(e.garage?' : '+esc(e.garage):'')+'</span>':'<span class="tag tag--self">Fait moi-même</span>';
+  return '<article class="entry"><div class="e-when"><b>'+fmtDate(e.date)+'</b><span>'+(typeof e.km==='number'?fmtKm(e.km)+' km':'km non noté')+'</span></div>'+
+    '<div class="e-what"><h3>'+esc(e.operation)+'</h3>'+
+    (e.parts?'<p><em>Pièces :</em> '+esc(e.parts)+'</p>':'')+
+    (e.notes?'<p>'+esc(e.notes)+'</p>':'')+by+'</div>'+
+    '<div class="e-side"><span class="e-cost">'+(typeof e.cost==='number'?eur.format(e.cost):'')+'</span><button class="link" data-act="edit-entry" data-id="'+esc(e.id)+'">Modifier</button></div></article>';
+}
+function entriesOf(vid){
+  return S.entries.filter(function(e){return e.vehicleId===vid;}).sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:(b.km||0)-(a.km||0);});
+}
+function vehicleView(v){
+  var es=entriesOf(v.id), items=dueList(v.id);
+  var total=es.reduce(function(t,e){return t+(typeof e.cost==='number'?e.cost:0);},0);
+  var self=es.filter(function(e){return e.by!=='garage';}).length;
+  var meta=[]; if(v.detail)meta.push('<span>'+esc(v.detail)+'</span>'); if(v.year)meta.push('<span>'+esc(v.year)+'</span>');
+  if(v.plate)meta.push('<span class="plate"><span>'+esc(v.plate)+'</span></span>');
+  meta.push('<button class="link" data-act="edit-veh" data-id="'+esc(v.id)+'">Modifier la fiche</button>');
+  var h='<section class="sec"><div class="veh-h"><h2>'+esc(v.name)+'</h2><div class="veh-meta">'+meta.join('')+'</div></div>'+
+    '<div class="car">'+'<p class="car-sub">'+(v.kmDate?'Dernier relevé le '+fmtDate(v.kmDate):'Kilométrage à relever')+'</p>'+kmBlock(v)+'</div>'+
+    '<p class="stats"><b>'+es.length+'</b> intervention'+(es.length>1?'s':'')+' · <b>'+eur.format(total)+'</b> au total · <b>'+self+'</b> faite'+(self>1?'s':'')+' moi-même</p></section>';
+  h+='<section class="sec"><div class="seg" role="group" aria-label="Affichage"><button data-act="tab" data-tab="due" aria-pressed="'+(S.tab==='due')+'">Échéances ('+items.length+')</button><button data-act="tab" data-tab="log" aria-pressed="'+(S.tab==='log')+'">Historique ('+es.length+')</button></div>';
+  if(S.tab==='due'){
+    h+='<div class="actions"><button class="btn btn--primary" data-act="new-sched">Ajouter une échéance</button></div>';
+    h+=items.length?summary(items)+dueGroups(items,false):'<div class="empty"><p><b>Aucune échéance pour ce véhicule.</b> Indiquez l’intervalle en km et en mois, puis la date et le kilométrage de la dernière réalisation.</p></div>';
+  }else{
+    h+='<div class="actions"><button class="btn btn--primary" data-act="new-entry">Ajouter une intervention</button>'+(es.length?'<button class="btn" data-act="csv">Exporter en CSV</button>':'')+'</div>';
+    h+=es.length?'<div class="log">'+es.map(entryRow).join('')+'</div>':'<div class="empty"><p><b>Historique vide.</b> Chaque intervention saisie ici alimente l’export CSV à remettre à l’acheteur.</p></div>';
+  }
+  return h+'</section>';
+}
+function render(){
+  var a=document.activeElement,keep=null;
+  if(a&&a.id&&root.contains(a)&&'value' in a)keep={id:a.id,v:a.value};
+  $('#sync').textContent=storageOk?'Données enregistrées sur cet appareil':'Stockage bloqué : rien ne sera conservé';
+  var v=S.view==='dash'?null:veh(S.view);
+  if(S.view!=='dash'&&!v)S.view='dash';
+  var h=nav()+(v?vehicleView(v):dash());
+  root.innerHTML=h;
+  if(keep){var n=document.getElementById(keep.id);if(n){n.value=keep.v;n.focus();}}
+}
+
+/* ---------- fenêtres ---------- */
+function fillVehicles(sel,vid){
+  sel.innerHTML=sortedVehicles().map(function(v){return '<option value="'+esc(v.id)+'">'+esc(v.name)+'</option>';}).join('');
+  if(vid)sel.value=vid;
+}
+function fillLinks(vid,linkId){
+  var list=S.schedules.filter(function(s){return s.vehicleId===vid;});
+  $('#e-link').innerHTML='<option value="">Aucune</option>'+list.map(function(s){return '<option value="'+esc(s.id)+'">'+esc(s.title)+'</option>';}).join('');
+  $('#e-link').value=linkId&&list.some(function(s){return s.id===linkId;})?linkId:'';
+  $('#w-link').hidden=!list.length;
+}
+function disarm(){document.querySelectorAll('[data-armed]').forEach(function(b){b.removeAttribute('data-armed');b.textContent=b.dataset.label||b.textContent;});}
+function showErr(id,msg){var e=$(id);e.textContent=msg||'';e.hidden=!msg;}
+function currentVid(){return S.view!=='dash'&&veh(S.view)?S.view:(sortedVehicles()[0]||{}).id;}
+function openEntry(o){
+  o=o||{}; var e=o.id?S.entries.find(function(x){return x.id===o.id;}):null;
+  editing.entry=e?e.id:null; disarm(); showErr('#e-err','');
+  var vid=e?e.vehicleId:(o.vehicleId||currentVid()), v=veh(vid);
+  $('#t-entry').textContent=e?'Modifier l’intervention':'Nouvelle intervention';
+  fillVehicles($('#e-vehicle'),vid);
+  $('#e-date').value=e?e.date:todayISO();
+  $('#e-km').value=e?(typeof e.km==='number'?e.km:''):(v&&typeof v.km==='number'?v.km:'');
+  $('#e-op').value=e?e.operation:(o.operation||'');
+  $('#e-parts').value=e?(e.parts||''):'';
+  $('#e-cost').value=e&&typeof e.cost==='number'?String(e.cost).replace('.',','):'';
+  var g=e&&e.by==='garage'; $('#e-by-garage').checked=!!g; $('#e-by-self').checked=!g; $('#w-garage').hidden=!g;
+  $('#e-garage').value=e?(e.garage||''):'';
+  $('#e-notes').value=e?(e.notes||''):'';
+  fillLinks(vid,o.link||'');
+  $('#e-del').hidden=!e;
+  $('#dlg-entry').showModal();
+}
+function schedPreview(){
+  var once=$('#s-mode-once').checked, today=todayISO(), parts=[];
+  $('#fs-rec').hidden=once; $('#fs-once').hidden=!once;
+  if(once){
+    var dk=parseKm($('#s-dueKm').value), dd=$('#s-dueDate').value;
+    if(typeof dk==='number'&&!isNaN(dk))parts.push('à '+fmtKm(dk)+' km');
+    if(dd)parts.push('le '+fmtDate(dd));
+  }else{
+    var ek=parseKm($('#s-everyKm').value), em=parseKm($('#s-everyMonths').value), lk=parseKm($('#s-lastKm').value), ld=$('#s-lastDate').value;
+    if(ek>0&&typeof lk==='number'&&!isNaN(lk))parts.push('à '+fmtKm(lk+ek)+' km');
+    if(em>0&&ld)parts.push('le '+fmtDate(addMonths(ld,em)));
+    if(!parts.length&&(ek>0||em>0)){$('#s-preview').textContent='Indiquez la dernière réalisation pour calculer la prochaine échéance.';return;}
+  }
+  $('#s-preview').textContent=parts.length?'Prochaine échéance : '+parts.join(' ou ')+(parts.length>1?', la première limite atteinte.':'.'):'Renseignez au moins une limite, en km ou en date.';
+}
+function openSched(o){
+  o=o||{}; var s=o.id?S.schedules.find(function(x){return x.id===o.id;}):null;
+  editing.sched=s?s.id:null; disarm(); showErr('#s-err','');
+  $('#t-sched').textContent=s?'Modifier l’échéance':'Nouvelle échéance';
+  fillVehicles($('#s-vehicle'),s?s.vehicleId:currentVid());
+  $('#s-title').value=s?s.title:'';
+  var once=s&&s.mode==='once'; $('#s-mode-once').checked=!!once; $('#s-mode-rec').checked=!once;
+  $('#s-everyKm').value=s&&s.everyKm?s.everyKm:''; $('#s-everyMonths').value=s&&s.everyMonths?s.everyMonths:'';
+  $('#s-lastDate').value=s&&s.lastDate?s.lastDate:''; $('#s-lastKm').value=s&&typeof s.lastKm==='number'?s.lastKm:'';
+  $('#s-dueDate').value=s&&s.dueDate?s.dueDate:''; $('#s-dueKm').value=s&&typeof s.dueKm==='number'?s.dueKm:'';
+  $('#s-notes').value=s?(s.notes||''):'';
+  $('#s-del').hidden=!s;
+  schedPreview();
+  $('#dlg-sched').showModal();
+}
+function openVeh(id){
+  var v=id?veh(id):null; editing.veh=v?v.id:null; disarm(); showErr('#v-err','');
+  $('#t-veh').textContent=v?'Modifier le véhicule':'Nouveau véhicule';
+  $('#v-name').value=v?v.name:''; $('#v-detail').value=v?(v.detail||''):'';
+  $('#v-year').value=v&&v.year?v.year:''; $('#v-plate').value=v?(v.plate||''):'';
+  $('#v-km').value=''; $('#w-vkm').hidden=!!v; $('#v-del').hidden=!v;
+  $('#dlg-veh').showModal();
+}
+function closeAll(){document.querySelectorAll('dialog[open]').forEach(function(d){d.close();});}
+
+/* ---------- enregistrements ---------- */
+async function submitKm(form){
+  var v=veh(form.dataset.id); if(!v)return;
+  var inp=form.querySelector('input'), val=parseKm(inp.value), w=S.kmWarn[v.id];
+  if(val==null){inp.focus();return;}
+  if(isNaN(val)){S.kmWarn[v.id]={value:null,msg:'Entrez un nombre entier de kilomètres, par exemple 148200.'};render();return;}
+  var confirmed=w&&w.value===val;
+  if(typeof v.km==='number'&&!confirmed){
+    if(val<v.km){S.kmWarn[v.id]={value:val,msg:'Inférieur au relevé actuel ('+fmtKm(v.km)+' km). Appuyez sur Confirmer pour corriger.'};render();return;}
+    if(val-v.km>20000){S.kmWarn[v.id]={value:val,msg:'Écart de '+fmtKm(val-v.km)+' km depuis le dernier relevé. Appuyez sur Confirmer si c’est exact.'};render();return;}
+  }
+  delete S.kmWarn[v.id];
+  var ok=await guard(function(){return setKm(v,val,todayISO());});
+  var cur=document.getElementById('km-'+v.id); if(cur){cur.value='';cur.blur();}
+  render();
+  if(ok)toast(v.name+' : '+fmtKm(val)+' km enregistrés.');
+}
+async function saveEntry(){
+  var vid=$('#e-vehicle').value, v=veh(vid), date=$('#e-date').value, op=$('#e-op').value.trim();
+  var km=parseKm($('#e-km').value), cost=parseMoney($('#e-cost').value);
+  if(!v)return showErr('#e-err','Choisissez un véhicule.');
+  if(!date)return showErr('#e-err','Indiquez la date de l’intervention.');
+  if(!op)return showErr('#e-err','Indiquez l’opération réalisée.');
+  if(km!==null&&isNaN(km))return showErr('#e-err','Le kilométrage doit être un nombre entier, par exemple 148200.');
+  if(cost!==null&&isNaN(cost))return showErr('#e-err','Le coût doit être un montant, par exemple 84,50.');
+  var garage=$('#e-by-garage').checked;
+  var data={vehicleId:vid,date:date,km:km,operation:op,parts:$('#e-parts').value.trim(),cost:cost,by:garage?'garage':'self',garage:garage?$('#e-garage').value.trim():'',notes:$('#e-notes').value.trim()};
+  var link=$('#e-link').value, today=todayISO();
+  var ok=await guard(async function(){
+    await Store.put('entries',editing.entry,data);
+    if(typeof km==='number'&&(typeof v.km!=='number'||km>v.km))await setKm(v,km,date>today?today:date);
+    var s=link?S.schedules.find(function(x){return x.id===link;}):null;
+    if(s){
+      if(s.mode==='once')await Store.del('schedules',s.id);
+      else{var d=plain(s);d.lastDate=date;d.lastKm=typeof km==='number'?km:(typeof v.km==='number'?v.km:(typeof s.lastKm==='number'?s.lastKm:null));await Store.put('schedules',s.id,d);}
+    }
+  });
+  if(ok){closeAll();toast('Intervention enregistrée.');}
+}
+async function saveSched(){
+  var vid=$('#s-vehicle').value, v=veh(vid), title=$('#s-title').value.trim(), once=$('#s-mode-once').checked;
+  if(!v)return showErr('#s-err','Choisissez un véhicule.');
+  if(!title)return showErr('#s-err','Indiquez l’opération à suivre.');
+  var prev=editing.sched?S.schedules.find(function(x){return x.id===editing.sched;}):null;
+  var data={vehicleId:vid,title:title,mode:once?'once':'rec',notes:$('#s-notes').value.trim(),everyKm:null,everyMonths:null,lastDate:null,lastKm:null,dueDate:null,dueKm:null,baseDate:null,baseKm:null};
+  if(once){
+    var dk=parseKm($('#s-dueKm').value), dd=$('#s-dueDate').value||null;
+    if(dk!==null&&isNaN(dk))return showErr('#s-err','La limite en km doit être un nombre entier.');
+    if(dk===null&&!dd)return showErr('#s-err','Renseignez au moins une limite, en km ou en date.');
+    data.dueKm=dk; data.dueDate=dd;
+    data.baseDate=prev&&prev.baseDate?prev.baseDate:todayISO();
+    data.baseKm=prev&&typeof prev.baseKm==='number'?prev.baseKm:(typeof v.km==='number'?v.km:null);
+  }else{
+    var ek=parseKm($('#s-everyKm').value), em=parseKm($('#s-everyMonths').value), lk=parseKm($('#s-lastKm').value);
+    if((ek!==null&&isNaN(ek))||(em!==null&&isNaN(em))||(lk!==null&&isNaN(lk)))return showErr('#s-err','Les intervalles et le kilométrage doivent être des nombres entiers.');
+    if(!ek&&!em)return showErr('#s-err','Renseignez au moins un intervalle, en km ou en mois.');
+    data.everyKm=ek||null; data.everyMonths=em||null; data.lastKm=lk; data.lastDate=$('#s-lastDate').value||null;
+  }
+  var ok=await guard(function(){return Store.put('schedules',editing.sched,data);});
+  if(ok){closeAll();toast('Échéance enregistrée.');}
+}
+async function saveVeh(){
+  var name=$('#v-name').value.trim(), year=parseKm($('#v-year').value), km=parseKm($('#v-km').value);
+  if(!name)return showErr('#v-err','Indiquez la marque et le modèle.');
+  if(year!==null&&(isNaN(year)||year<1880||year>2100))return showErr('#v-err','L’année doit s’écrire sur quatre chiffres, par exemple 1978.');
+  if(km!==null&&isNaN(km))return showErr('#v-err','Le kilométrage doit être un nombre entier.');
+  var prev=editing.veh?veh(editing.veh):null, today=todayISO(), data;
+  if(prev){data=plain(prev);data.name=name;data.detail=$('#v-detail').value.trim();data.year=year;data.plate=$('#v-plate').value.trim().toUpperCase();}
+  else{
+    var order=S.vehicles.reduce(function(m,x){return Math.max(m,x.order||0);},0)+1;
+    data={name:name,detail:$('#v-detail').value.trim(),year:year,plate:$('#v-plate').value.trim().toUpperCase(),km:km,kmDate:km!=null?today:null,kmLog:km!=null?[{d:today,k:km}]:[],order:order};
+  }
+  var id=null;
+  var ok=await guard(async function(){id=await Store.put('vehicles',editing.veh,data);});
+  if(ok){closeAll();if(!prev&&id){S.view=id;S.tab='due';}render();toast('Véhicule enregistré.');}
+}
+function armed(btn,label){
+  if(btn.dataset.armed)return true;
+  btn.dataset.label=btn.textContent; btn.dataset.armed='1'; btn.textContent=label; return false;
+}
+function slug(s){return String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'vehicule';}
+function csvOf(v){
+  var q=function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';};
+  var rows=[['Véhicule','Date','Kilométrage','Opération','Pièces','Coût (EUR)','Réalisé par','Garage','Notes']];
+  var label=v.name+(v.detail?' '+v.detail:'')+(v.year?' ('+v.year+')':'');
+  entriesOf(v.id).reverse().forEach(function(e){
+    rows.push([label,fmtDate(e.date),typeof e.km==='number'?e.km:'',e.operation,e.parts||'',typeof e.cost==='number'?e.cost.toFixed(2).replace('.',','):'',e.by==='garage'?'Garage':'Moi-même',e.garage||'',e.notes||'']);
+  });
+  return '﻿'+rows.map(function(r){return r.map(q).join(';');}).join('\r\n')+'\r\n';
+}
+async function exportCsv(v){
+  var data=csvOf(v), name='carnet-entretien-'+slug(v.name)+'.csv';
+  var r=await deliver(name,data,'text/csv');
+  if(r==='failed'){$('#csv-text').value=data.slice(1);$('#dlg-csv').showModal();}
+  else if(r==='downloaded')toast('Export CSV : '+name);
+}
+
+/* ---------- événements ---------- */
+document.addEventListener('click',function(ev){
+  var b=ev.target.closest('[data-act]'); if(!b)return;
+  var act=b.dataset.act, id=b.dataset.id;
+  if(act==='view'){S.view=b.dataset.view;S.tab='due';render();window.scrollTo(0,0);}
+  else if(act==='tab'){S.tab=b.dataset.tab;render();}
+  else if(act==='close'){closeAll();}
+  else if(act==='new-entry'){if(S.vehicles.length)openEntry();}
+  else if(act==='edit-entry'){openEntry({id:id});}
+  else if(act==='new-sched'){if(S.vehicles.length)openSched();}
+  else if(act==='edit-sched'){openSched({id:id});}
+  else if(act==='done'){var s=S.schedules.find(function(x){return x.id===id;});if(s)openEntry({vehicleId:s.vehicleId,operation:s.title,link:s.id});}
+  else if(act==='new-veh'){openVeh(null);}
+  else if(act==='edit-veh'){openVeh(id);}
+  else if(act==='csv'){var v=veh(S.view);if(v)exportCsv(v);}
+  else if(act==='copy-csv'){
+    var t=$('#csv-text');
+    navigator.clipboard.writeText(t.value).then(function(){toast('CSV copié.');},function(){t.focus();t.select();toast('Copie refusée : le texte est sélectionné, copiez-le à la main.',true);});
+  }
+  else if(act==='backup'){doBackup();}
+  else if(act==='restore'){var fi=$('#imp-file');fi.value='';fi.click();}
+  else if(act==='import-ok'){if(pendingImport)applyImport(pendingImport);}
+  else if(act==='import-cancel'){pendingImport=null;render();}
+  else if(act==='hide-tip'){try{localStorage.setItem(KEY+'-tip','0');}catch(e){}render();}
+  else if(act==='del-entry'){
+    if(!armed(b,'Confirmer la suppression'))return;
+    guard(function(){return Store.del('entries',editing.entry);}).then(function(ok){if(ok){closeAll();toast('Intervention supprimée.');}});
+  }
+  else if(act==='del-sched'){
+    if(!armed(b,'Confirmer la suppression'))return;
+    guard(function(){return Store.del('schedules',editing.sched);}).then(function(ok){if(ok){closeAll();toast('Échéance supprimée.');}});
+  }
+  else if(act==='del-veh'){
+    if(!armed(b,'Confirmer : supprimer aussi son historique'))return;
+    var vid=editing.veh;
+    guard(async function(){
+      var es=S.entries.filter(function(e){return e.vehicleId===vid;}).map(function(e){return e.id;});
+      var ss=S.schedules.filter(function(s){return s.vehicleId===vid;}).map(function(s){return s.id;});
+      for(var a=0;a<es.length;a++)await Store.del('entries',es[a]);
+      for(var c=0;c<ss.length;c++)await Store.del('schedules',ss[c]);
+      await Store.del('vehicles',vid);
+    }).then(function(ok){if(ok){closeAll();S.view='dash';render();toast('Véhicule supprimé.');}});
+  }
+});
+document.addEventListener('submit',function(ev){
+  ev.preventDefault();
+  var f=ev.target;
+  if(f.dataset.form==='km')submitKm(f);
+  else if(f.id==='f-entry')saveEntry();
+  else if(f.id==='f-sched')saveSched();
+  else if(f.id==='f-veh')saveVeh();
+});
+$('#f-sched').addEventListener('input',schedPreview);
+$('#f-entry').addEventListener('change',function(ev){
+  if(ev.target.name==='e-by')$('#w-garage').hidden=!$('#e-by-garage').checked;
+  if(ev.target.id==='e-vehicle'){
+    fillLinks(ev.target.value,'');
+    var v=veh(ev.target.value); if(!editing.entry)$('#e-km').value=v&&typeof v.km==='number'?v.km:'';
+  }
+});
+
+/* ---------- démarrage ---------- */
+$('#imp-file').addEventListener('change',function(ev){var f=ev.target.files&&ev.target.files[0];if(f)readImport(f);});
+try{localStorage.setItem(KEY+'-test','1');localStorage.removeItem(KEY+'-test');}catch(e){storageOk=false;}
+loadState();
+S.mode='live';
+render();
+if(navigator.storage&&navigator.storage.persist){try{navigator.storage.persist().catch(function(){});}catch(e){}}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){});});}
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+CARNET D'ENTRETIEN - version autonome (application web installable)
+
+Contenu du dossier
+  index.html             l'application
+  sw.js                  fonctionnement hors ligne
+  manifest.webmanifest   nom, couleurs et icônes de l'application
+  icon-180/192/512.png   icônes
+
+Mise en ligne (une seule fois)
+  Les fichiers doivent être servis en https, tous dans le même dossier.
+  Exemple avec GitHub Pages :
+  1. Créer un dépôt public sur github.com et y déposer ces fichiers à la racine.
+  2. Settings > Pages > Source : "Deploy from a branch", branche main, dossier / (root).
+  3. L'adresse est https://VOTRE-COMPTE.github.io/NOM-DU-DEPOT/
+
+Installation sur iPhone
+  1. Ouvrir l'adresse dans Safari.
+  2. Partager > "Sur l'écran d'accueil" > Ajouter.
+  3. Lancer le carnet depuis son icône. Les données saisies dans l'icône sont
+     séparées de celles de Safari : saisir et restaurer uniquement depuis l'icône.
+
+Données
+  Tout est stocké sur le téléphone. Aucune donnée n'est envoyée sur Internet.
+  Tableau de bord > Sauvegarde : créer régulièrement un fichier de sauvegarde
+  (à ranger dans Fichiers ou iCloud Drive) et le restaurer si besoin.
+
+Mise à jour de l'application
+  Remplacer les fichiers en ligne, puis ouvrir deux fois le carnet avec du réseau.
