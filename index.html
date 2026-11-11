@@ -450,10 +450,10 @@ function dueInfo(s,v,today,rate){
   if(dueKm!=null&&vkm!=null&&baseKm!=null&&dueKm>baseKm)pKm=(vkm-baseKm)/(dueKm-baseKm);
   if(dueDate&&baseDate){var span=diffDays(baseDate,dueDate);if(span>0)pTime=diffDays(baseDate,today)/span;}
   var est=(binding==='km'&&kmLeft>0&&rate)?addDays(today,Math.round(kmLeft/rate)):null;
-  return {dueKm:dueKm,dueDate:dueDate,kmLeft:kmLeft,daysLeft:daysLeft,status:status,binding:binding,urgency:urgency,pKm:pKm,pTime:pTime,notes:notes,est:est,rate:rate||null};
+  return {once:s.mode==='once',dueKm:dueKm,dueDate:dueDate,kmLeft:kmLeft,daysLeft:daysLeft,status:status,binding:binding,urgency:urgency,pKm:pKm,pTime:pTime,notes:notes,est:est,rate:rate||null};
 }
 function mainText(i){
-  if(i.status==='unknown')return i.dueKm!=null?'Kilométrage du véhicule à saisir':'Dernière réalisation à renseigner';
+  if(i.status==='unknown')return i.dueKm!=null?'Kilométrage du véhicule à saisir':(i.once?'À planifier':'Dernière réalisation à renseigner');
   if(i.binding==='km'){
     if(i.kmLeft>0)return 'Dans '+fmtKm(i.kmLeft)+' km';
     if(i.kmLeft===0)return 'Kilométrage atteint';
